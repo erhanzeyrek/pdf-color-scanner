@@ -44,11 +44,10 @@ async function extractPageMatchesVisual(
 ): Promise<PDFTextMatch[]> {
   const page = await pdf.getPage(pageNum);
   
-  // Use a fixed scale for extraction to ensure consistency
-  const scale = 1.5; 
+  // Use a higher scale for better precision on thin/small text
+  const scale = 2.0; 
   const viewport = page.getViewport({ scale });
   
-  // 1. Create an Offscreen Canvas for visual sampling
   const canvas = document.createElement('canvas');
   canvas.width = viewport.width;
   canvas.height = viewport.height;
@@ -56,10 +55,8 @@ async function extractPageMatchesVisual(
   
   if (!ctx) return [];
 
-  // 2. Render the page to the canvas
   await page.render({ canvasContext: ctx, viewport }).promise;
 
-  // 3. Get text content (strings and positions)
   const textContent = await page.getTextContent();
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
@@ -69,37 +66,61 @@ async function extractPageMatchesVisual(
   for (const item of textContent.items) {
     if (!('str' in item) || item.str.trim().length === 0) continue;
 
-    // Get position in canvas pixels
     const transform = (item as any).transform as number[];
     const [,, , , tx, ty] = transform;
+    const width = (item as any).width || 10;
+    const height = (item as any).height || 10;
     
-    // Convert PDF coords to Viewport/Canvas coords
+    // Convert PDF baseline origin to Viewport coords
     const [vx, vy] = viewport.convertToViewportPoint(tx, ty);
     
-    // Sample the color at the text position
-    // We sample slightly inside the text box to avoid edge aliasing
-    const sampleX = Math.floor(vx);
-    const sampleY = Math.floor(vy) - 2; // Move up slightly as baseline is at the bottom
+    // Scale width/height to viewport
+    const vWidth = width * scale;
+    const vHeight = height * scale;
 
-    if (sampleX >= 0 && sampleX < canvas.width && sampleY >= 0 && sampleY < canvas.height) {
-      const offset = (sampleY * canvas.width + sampleX) * 4;
-      const sampledColor: RGB = {
-        r: data[offset],
-        g: data[offset + 1],
-        b: data[offset + 2],
-      };
+    // Multi-point sampling: check center and corners of the text item's estimated box
+    // This makes it much more likely to hit a colored pixel even for thin fonts.
+    const points = [
+      { x: vx + vWidth / 2, y: vy - vHeight / 2 }, // Center
+      { x: vx + 2, y: vy - vHeight + 2 },          // Top-left
+      { x: vx + vWidth - 2, y: vy - vHeight + 2 }, // Top-right
+      { x: vx + 2, y: vy - 2 },                    // Bottom-left
+      { x: vx + vWidth - 2, y: vy - 2 },           // Bottom-right
+    ];
 
-      if (colorsMatch(sampledColor, targetColor, tolerance)) {
-        matches.push({
-          text: item.str,
-          page: pageNum,
-          color: sampledColor,
-          x: tx,
-          y: viewport.height / scale - ty, // Store in PDF points for navigation
-          width: (item as any).width || 0,
-          height: (item as any).height || 12,
-        });
+    let foundMatch = false;
+    let finalColor = { r: 0, g: 0, b: 0 };
+
+    for (const pt of points) {
+      const sx = Math.floor(pt.x);
+      const sy = Math.floor(pt.y);
+
+      if (sx >= 0 && sx < canvas.width && sy >= 0 && sy < canvas.height) {
+        const offset = (sy * canvas.width + sx) * 4;
+        const sampled: RGB = {
+          r: data[offset],
+          g: data[offset + 1],
+          b: data[offset + 2],
+        };
+
+        if (colorsMatch(sampled, targetColor, tolerance)) {
+          foundMatch = true;
+          finalColor = sampled;
+          break;
+        }
       }
+    }
+
+    if (foundMatch) {
+      matches.push({
+        text: item.str,
+        page: pageNum,
+        color: finalColor,
+        x: tx,
+        y: viewport.height / scale - ty,
+        width: width,
+        height: height,
+      });
     }
   }
 
