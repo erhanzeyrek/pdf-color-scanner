@@ -57,25 +57,53 @@ if (chrome.contextMenus) {
   });
 }
 
-// 2. Icon Click - THE HEART OF THE EXTENSION
+// 2. Icon Click - THE HEART OF THE EXTENSION (With TOGGLE behavior)
 if (chrome.action) {
   chrome.action.onClicked.addListener((tab) => {
-    if (!tab.id || !tab.windowId) return;
+    if (!tab.id || !tab.windowId || !tab.url) return;
 
-    // A. Open the Side Panel immediately (using the click gesture)
-    if (chrome.sidePanel && (chrome.sidePanel as any).open) {
-      (chrome.sidePanel as any).open({ windowId: tab.windowId }).catch(() => {
-         // Fallback to tabId if windowId fails
-         (chrome.sidePanel as any).open({ tabId: tab.id }).catch(() => {});
-      });
-    }
+    const isExtensionViewer = tab.url.startsWith(chrome.runtime.getURL('viewer/viewer.html'));
 
-    // B. Redirect current tab to Viewer if it's a PDF
-    if (tab.url && (tab.url.toLowerCase().endsWith('.pdf') || tab.url.includes('.pdf?'))) {
-       openPdfInViewer(tab.url, tab.id);
+    if (isExtensionViewer) {
+      // TOGGLE OFF: Return to original PDF
+      try {
+        const urlObj = new URL(tab.url);
+        const originalUrl = urlObj.searchParams.get('url');
+        if (originalUrl) {
+          // 1. CLOSE side panel for this tab
+          if (chrome.sidePanel && chrome.sidePanel.setOptions) {
+            chrome.sidePanel.setOptions({
+              tabId: tab.id,
+              enabled: false
+            }).catch(() => {});
+          }
+          // 2. Redirect back to original PDF
+          chrome.tabs.update(tab.id, { url: decodeURIComponent(originalUrl) });
+        }
+      } catch (e) {
+        console.error('Toggle off failed:', e);
+      }
     } else {
-       // If not a PDF tab, maybe user wants to see the panel anyway
-       // or we could show an alert. For now, let's just let the panel open.
+      // TOGGLE ON: Open Side Panel and Viewer
+      // A. Re-enable and Open (SYNCHRONOUSLY to keep user gesture)
+      if (chrome.sidePanel) {
+        chrome.sidePanel.setOptions({
+          tabId: tab.id,
+          path: 'sidepanel/sidepanel.html',
+          enabled: true
+        });
+
+        if ((chrome.sidePanel as any).open) {
+          (chrome.sidePanel as any).open({ windowId: tab.windowId }).catch(() => {
+             (chrome.sidePanel as any).open({ tabId: tab.id! }).catch(() => {});
+          });
+        }
+      }
+
+      // B. Redirect current tab to Viewer if it's a PDF
+      if (tab.url.toLowerCase().endsWith('.pdf') || tab.url.includes('.pdf?')) {
+         openPdfInViewer(tab.url, tab.id);
+      }
     }
   });
 }
