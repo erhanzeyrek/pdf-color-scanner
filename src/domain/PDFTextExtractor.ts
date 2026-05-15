@@ -78,14 +78,18 @@ async function extractPageMatchesVisual(
     const vWidth = width * scale;
     const vHeight = height * scale;
 
-    // Multi-point sampling: check center and corners of the text item's estimated box
-    // This makes it much more likely to hit a colored pixel even for thin fonts.
+    // 9-point sampling: check center, corners, and mid-points of the text item's estimated box
+    // This provides maximum resilience against anti-aliasing and thin font lines.
     const points = [
       { x: vx + vWidth / 2, y: vy - vHeight / 2 }, // Center
       { x: vx + 2, y: vy - vHeight + 2 },          // Top-left
       { x: vx + vWidth - 2, y: vy - vHeight + 2 }, // Top-right
       { x: vx + 2, y: vy - 2 },                    // Bottom-left
       { x: vx + vWidth - 2, y: vy - 2 },           // Bottom-right
+      { x: vx + vWidth / 2, y: vy - vHeight + 2 }, // Top-center
+      { x: vx + vWidth / 2, y: vy - 2 },           // Bottom-center
+      { x: vx + 2, y: vy - vHeight / 2 },          // Middle-left
+      { x: vx + vWidth - 2, y: vy - vHeight / 2 }, // Middle-right
     ];
 
     let foundMatch = false;

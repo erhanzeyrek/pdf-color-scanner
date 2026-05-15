@@ -14,9 +14,9 @@ import type { ChromeMessage, PDFTextMatch, RGB } from '../domain/types';
 
 // ── Tolerance options (Euclidean RGB distance) ────────────────
 const TOLERANCE_OPTIONS = [
-  { label: 'Strict', value: 10 },
-  { label: 'Normal', value: 30 },
-  { label: 'Loose', value: 60 },
+  { label: 'Strict', value: 25 },
+  { label: 'Normal', value: 60 },
+  { label: 'Loose', value: 100 },
 ];
 
 // ── Main Component ────────────────────────────────────────────
@@ -25,7 +25,7 @@ const SidePanelApp: React.FC = () => {
   const [matches, setMatches] = useState<PDFTextMatch[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
-  const [tolerance, setTolerance] = useState(30);
+  const [tolerance, setTolerance] = useState(60);
   const [pdfLoaded, setPdfLoaded] = useState(false);
   const [fileName, setFileName] = useState('');
   const [totalPages, setTotalPages] = useState(0);
