@@ -44,8 +44,8 @@ async function extractPageMatchesVisual(
 ): Promise<PDFTextMatch[]> {
   const page = await pdf.getPage(pageNum);
   
-  // Use a higher scale for better precision on thin/small text
-  const scale = 2.0; 
+  // Use a high scale for ultra-high precision on thin/small text
+  const scale = 3.0; 
   const viewport = page.getViewport({ scale });
   
   const canvas = document.createElement('canvas');
@@ -78,19 +78,20 @@ async function extractPageMatchesVisual(
     const vWidth = width * scale;
     const vHeight = height * scale;
 
-    // 9-point sampling: check center, corners, and mid-points of the text item's estimated box
-    // This provides maximum resilience against anti-aliasing and thin font lines.
-    const points = [
-      { x: vx + vWidth / 2, y: vy - vHeight / 2 }, // Center
-      { x: vx + 2, y: vy - vHeight + 2 },          // Top-left
-      { x: vx + vWidth - 2, y: vy - vHeight + 2 }, // Top-right
-      { x: vx + 2, y: vy - 2 },                    // Bottom-left
-      { x: vx + vWidth - 2, y: vy - 2 },           // Bottom-right
-      { x: vx + vWidth / 2, y: vy - vHeight + 2 }, // Top-center
-      { x: vx + vWidth / 2, y: vy - 2 },           // Bottom-center
-      { x: vx + 2, y: vy - vHeight / 2 },          // Middle-left
-      { x: vx + vWidth - 2, y: vy - vHeight / 2 }, // Middle-right
-    ];
+    // Adaptive Grid Sampling: 
+    // For normal text, 3x3 (9 points) is fine.
+    // For large/bold text (like the orange '34'), we use 5x5 (25 points) to ensure we hit a stroke.
+    const gridDensity = (width > 20 || height > 20) ? 5 : 3;
+    const points: { x: number; y: number }[] = [];
+    
+    for (let row = 0; row < gridDensity; row++) {
+      for (let col = 0; col < gridDensity; col++) {
+        // Calculate point with 10% padding to avoid edge anti-aliasing
+        const px = vx + (vWidth * 0.1) + (vWidth * 0.8 * (col / (gridDensity - 1 || 1)));
+        const py = vy - (vHeight * 0.9) + (vHeight * 0.8 * (row / (gridDensity - 1 || 1)));
+        points.push({ x: px, y: py });
+      }
+    }
 
     let foundMatch = false;
     let finalColor = { r: 0, g: 0, b: 0 };
