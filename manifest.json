@@ -14,7 +14,9 @@
     "activeTab"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "http://*/*",
+    "https://*/*",
+    "file://*/*"
   ],
   "background": {
     "service_worker": "background/index.js",
@@ -33,7 +35,7 @@
   "web_accessible_resources": [
     {
       "resources": ["viewer/viewer.html", "assets/*"],
-      "matches": ["<all_urls>"]
+      "matches": ["http://*/*", "https://*/*", "file://*/*"]
     }
   ]
 }
