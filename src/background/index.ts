@@ -4,6 +4,11 @@ const MENU_PAGE = 'ANALYZE_PDF_PAGE';
 
 // ── Initialization ────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {
+  // Disable side panel globally by default
+  if (chrome.sidePanel && chrome.sidePanel.setOptions) {
+    chrome.sidePanel.setOptions({ enabled: false }).catch(() => {});
+  }
+
   if (chrome.contextMenus) {
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({
@@ -70,7 +75,7 @@ if (chrome.action) {
         const urlObj = new URL(tab.url);
         const originalUrl = urlObj.searchParams.get('url');
         if (originalUrl) {
-          // 1. CLOSE side panel for this tab
+          // 1. DISABLE side panel for this specific tab
           if (chrome.sidePanel && chrome.sidePanel.setOptions) {
             chrome.sidePanel.setOptions({
               tabId: tab.id,
@@ -85,17 +90,20 @@ if (chrome.action) {
       }
     } else {
       // TOGGLE ON: Open Side Panel and Viewer
-      // A. Re-enable and Open (SYNCHRONOUSLY to keep user gesture)
+      // A. Enable and Open (TAB-SPECIFIC)
       if (chrome.sidePanel) {
+        // First, enable it ONLY for this tab
         chrome.sidePanel.setOptions({
           tabId: tab.id,
           path: 'sidepanel/sidepanel.html',
           enabled: true
         });
 
+        // Then open it for this specific tab
         if ((chrome.sidePanel as any).open) {
-          (chrome.sidePanel as any).open({ windowId: tab.windowId }).catch(() => {
-             (chrome.sidePanel as any).open({ tabId: tab.id! }).catch(() => {});
+          (chrome.sidePanel as any).open({ tabId: tab.id }).catch(() => {
+             // Fallback to window if tab-specific open is restricted
+             (chrome.sidePanel as any).open({ windowId: tab.windowId }).catch(() => {});
           });
         }
       }
