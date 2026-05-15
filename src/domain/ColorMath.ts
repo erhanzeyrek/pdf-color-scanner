@@ -60,6 +60,15 @@ export function pdfRgbToRgb(r: number, g: number, b: number): RGB {
   };
 }
 
+/** Converts PDF CMYK values (each 0–1) to RGB. */
+export function cmykToRgb(c: number, m: number, y: number, k: number): RGB {
+  return {
+    r: Math.round(255 * (1 - c) * (1 - k)),
+    g: Math.round(255 * (1 - m) * (1 - k)),
+    b: Math.round(255 * (1 - y) * (1 - k)),
+  };
+}
+
 /** Returns a human-readable contrast color (black or white) for a given background. */
 export function contrastColor(bg: RGB): string {
   // ITU-R BT.709 luminance formula
