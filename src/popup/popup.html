@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Color Analytics</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      width: 200px;
+      background: #ffffff;
+    }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+      color: #333;
+      font-size: 14px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      background: #f8f9fa;
+    }
+    .menu-item:hover {
+      background: #eef2ff;
+      border-color: #dbeafe;
+      color: #0061D3;
+    }
+    .icon {
+      color: #0061D3;
+    }
+    .header {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+      padding-left: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">PDF Color Analytics</div>
+  <div id="analyzeBtn" class="menu-item">
+    <span class="icon">🔍</span>
+    <span>Analyze Colors</span>
+  </div>
+
+  <script>
+    document.getElementById('analyzeBtn').addEventListener('click', async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab) {
+        // 1. Open side panel IMMEDIATELY in the current window (using current gesture)
+        await chrome.sidePanel.open({ windowId: tab.windowId });
+        
+        // 2. Tell background to open the new tab
+        chrome.runtime.sendMessage({ 
+          type: 'START_ANALYSIS', 
+          url: tab.url
+        });
+        
+        // 3. Close the popup
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>

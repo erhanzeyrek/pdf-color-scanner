@@ -1,66 +1,87 @@
-// ============================================================
-// Background Service Worker
-// Responsibilities:
-//   1. Open the side panel when the extension action is clicked
-//   2. Intercept navigation to PDF URLs and redirect to viewer.html
-//   3. Relay messages between the viewer tab and the side panel
-// ============================================================
+// ── Context Menu IDs ──────────────────────────────────────────
+const MENU_LINK = 'ANALYZE_PDF_LINK';
+const MENU_PAGE = 'ANALYZE_PDF_PAGE';
 
-// Configure side panel to open on action button click
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch(console.error);
-
-// Track tabs that were already redirected to avoid infinite loops
-const redirectedTabs = new Set<number>();
-
-/**
- * Detect PDF navigations and redirect them to our custom viewer.
- * We use tabs.onUpdated because it fires for all navigations
- * including user-typed URLs and link clicks.
- */
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'loading') return;
-  if (!tab.url) return;
-  if (redirectedTabs.has(tabId)) {
-    redirectedTabs.delete(tabId);
-    return;
-  }
-
-  const url = tab.url;
-
-  // Match: ends with .pdf (optionally with query/hash) or has Content-Type application/pdf
-  const isPdfUrl =
-    /\.pdf(\?[^#]*)?(#.*)?$/i.test(url) &&
-    !url.startsWith(chrome.runtime.getURL(''));
-
-  if (isPdfUrl) {
-    redirectedTabs.add(tabId);
-    const viewerUrl =
-      chrome.runtime.getURL('viewer/viewer.html') +
-      '?url=' +
-      encodeURIComponent(url);
-
-    chrome.tabs.update(tabId, { url: viewerUrl }).catch(console.error);
+// ── Initialization ────────────────────────────────────────────
+chrome.runtime.onInstalled.addListener(() => {
+  if (chrome.contextMenus) {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: MENU_LINK,
+        title: 'Analyze Link with PDF Color Analytics',
+        contexts: ['link'],
+        targetUrlPatterns: ['*://*/*.pdf*', 'file://*/*.pdf*']
+      });
+      chrome.contextMenus.create({
+        id: MENU_PAGE,
+        title: 'Analyze this PDF',
+        contexts: ['page']
+      });
+    });
   }
 });
 
-// Clean up tracking set when tab is closed
-chrome.tabs.onRemoved.addListener((tabId) => {
-  redirectedTabs.delete(tabId);
-});
+// IMPORTANT: We DISABLE the automatic behavior to capture the click event ourselves
+if (chrome.sidePanel && (chrome.sidePanel as any).setPanelBehavior) {
+  (chrome.sidePanel as any).setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+}
 
-/**
- * Message relay: the viewer sends COLOR_PICKED / SCAN_RESULTS / PDF_LOADED
- * to the extension runtime. We broadcast them to all extension pages
- * (including the side panel).
- */
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  // Relay to all extension views (side panel lives there)
-  chrome.runtime.sendMessage(message).catch(() => {
-    // Side panel may not be open; ignore the error
+// ── Helpers ───────────────────────────────────────────────────
+function openPdfInViewer(url: string, tabId?: number) {
+  if (!url || url.startsWith('chrome-extension://') || url.startsWith('chrome://')) return;
+  
+  const viewerUrl = chrome.runtime.getURL(`viewer/viewer.html?url=${encodeURIComponent(url)}`);
+  
+  if (tabId) {
+    chrome.tabs.update(tabId, { url: viewerUrl });
+  } else {
+    chrome.tabs.create({ url: viewerUrl });
+  }
+}
+
+// ── Handlers ──────────────────────────────────────────────────
+
+// 1. Context Menu
+if (chrome.contextMenus) {
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (tab?.id && tab.windowId) {
+       // Open side panel first (user gesture)
+       (chrome.sidePanel as any).open({ windowId: tab.windowId }).catch(() => {});
+    }
+
+    if (info.menuItemId === MENU_LINK && info.linkUrl) {
+      openPdfInViewer(info.linkUrl);
+    } else if (info.menuItemId === MENU_PAGE && tab?.url) {
+      openPdfInViewer(tab.url, tab.id);
+    }
   });
+}
 
-  sendResponse({ ok: true });
+// 2. Icon Click - THE HEART OF THE EXTENSION
+if (chrome.action) {
+  chrome.action.onClicked.addListener((tab) => {
+    if (!tab.id || !tab.windowId) return;
+
+    // A. Open the Side Panel immediately (using the click gesture)
+    if (chrome.sidePanel && (chrome.sidePanel as any).open) {
+      (chrome.sidePanel as any).open({ windowId: tab.windowId }).catch(() => {
+         // Fallback to tabId if windowId fails
+         (chrome.sidePanel as any).open({ tabId: tab.id }).catch(() => {});
+      });
+    }
+
+    // B. Redirect current tab to Viewer if it's a PDF
+    if (tab.url && (tab.url.toLowerCase().endsWith('.pdf') || tab.url.includes('.pdf?'))) {
+       openPdfInViewer(tab.url, tab.id);
+    } else {
+       // If not a PDF tab, maybe user wants to see the panel anyway
+       // or we could show an alert. For now, let's just let the panel open.
+    }
+  });
+}
+
+// 3. Message Relay (For real-time scan results)
+chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.sendMessage(message).catch(() => {});
   return true;
 });

@@ -100,7 +100,7 @@ const PageCanvas: React.FC<PageCanvasProps> = ({
         const viewport = page.getViewport({ scale });
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx || cancelled) {
           page.cleanup();
           return;
@@ -128,7 +128,7 @@ const PageCanvas: React.FC<PageCanvasProps> = ({
     const scaleY = canvas.height / rect.height;
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
     const [r, g, b] = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
     return { r, g, b };
@@ -338,7 +338,15 @@ const ViewerApp: React.FC = () => {
   const handleColorPick = useCallback((color: RGB) => {
     setSelectedColor(color);
     setIsPickMode(false);
-    chrome.runtime.sendMessage({ type: 'COLOR_PICKED', color }).catch(() => {});
+    
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      // 1. OPEN SIDE PANEL IMMEDIATELY (Must be synchronous to keep user gesture)
+      if (chrome.sidePanel && (chrome.sidePanel as any).open) {
+        (chrome.sidePanel as any).open({}).catch(() => {});
+      }
+
+      chrome.runtime.sendMessage({ type: 'COLOR_PICKED', color }).catch(() => {});
+    }
   }, []);
 
   const handleMouseMoveOnCanvas = useCallback((color: RGB, x: number, y: number) => {
@@ -371,6 +379,21 @@ const ViewerApp: React.FC = () => {
       setScanProgress(0);
     }
   };
+
+  // ── Sync Logic via Storage ───────────────────────────────────
+  useEffect(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage && pdf) {
+      chrome.storage.local.set({
+        viewerState: {
+          pdfLoaded: true,
+          fileName,
+          totalPages: pdf.numPages,
+          selectedColor,
+          lastUpdated: Date.now()
+        }
+      });
+    }
+  }, [pdf, fileName, selectedColor]);
 
   const zoomPercent = Math.round((scale / DEFAULT_SCALE) * 100);
 

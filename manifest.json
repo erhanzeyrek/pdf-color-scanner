@@ -11,31 +11,27 @@
   "permissions": [
     "sidePanel",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "contextMenus",
+    "storage"
   ],
   "host_permissions": [
-    "http://*/*",
-    "https://*/*",
-    "file://*/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background/index.js",
     "type": "module"
   },
+  "action": {
+    "default_title": "Open PDF Color Analytics"
+  },
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
-  },
-  "action": {
-    "default_title": "PDF Color Analytics",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png"
-    }
   },
   "web_accessible_resources": [
     {
       "resources": ["viewer/viewer.html", "assets/*"],
-      "matches": ["http://*/*", "https://*/*", "file://*/*"]
+      "matches": ["<all_urls>"]
     }
   ]
 }

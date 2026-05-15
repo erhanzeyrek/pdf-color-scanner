@@ -17,6 +17,10 @@ const postBuildPlugin = {
         from: 'dist/src/sidepanel/sidepanel.html',
         to: 'dist/sidepanel/sidepanel.html',
       },
+      {
+        from: 'dist/src/popup/popup.html',
+        to: 'dist/popup/popup.html',
+      },
     ];
 
     for (const { from, to } of moves) {
@@ -45,6 +49,7 @@ export default defineConfig({
       input: {
         viewer: resolve(__dirname, 'src/viewer/viewer.html'),
         sidepanel: resolve(__dirname, 'src/sidepanel/sidepanel.html'),
+        popup: resolve(__dirname, 'src/popup/popup.html'),
         background: resolve(__dirname, 'src/background/index.ts'),
       },
       output: {
@@ -52,6 +57,7 @@ export default defineConfig({
           if (chunkInfo.name === 'background') return 'background/index.js';
           if (chunkInfo.name === 'viewer') return 'viewer/index.js';
           if (chunkInfo.name === 'sidepanel') return 'sidepanel/index.js';
+          if (chunkInfo.name === 'popup') return 'popup/index.js';
           return 'assets/[name]-[hash].js';
         },
         chunkFileNames: 'assets/[name]-[hash].js',
